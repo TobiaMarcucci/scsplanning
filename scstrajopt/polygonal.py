@@ -11,7 +11,7 @@ def polygonal_curve(
     vel_set: ConvexSet | None,
     acc_set: ConvexSet,
     deg: int,
-    min_duration: float = 1e-2
+    min_duration: float = 0
     ) -> CompositeBezierCurve:
     '''
     Constructs a polygonal composite curve that connects q_init and q_term in
@@ -42,7 +42,7 @@ def polygonal_curve(
                 curve = curves.pop(0)
         else:
             split_time = get_crossing_time(curve, knot)
-            split_curve, curve = curve.split(split_time)
+            split_curve, curve = curve.domain_split(split_time)
             split_curves.append(split_curve)
 
     return CompositeBezierCurve(split_curves)
@@ -105,7 +105,7 @@ def get_crossing_time(curve, q, tol=1e-7):
     min_time = curve.initial_time
     max_time = curve.final_time
     q0 = curve.initial_point()
-    direction = curve.final_points() - q0
+    direction = curve.final_point() - q0
     d1 = (q - q0).dot(direction)
     while max_time - min_time > tol:
         time = (min_time + max_time) / 2
@@ -169,11 +169,11 @@ def get_point_to_point_solver(vel_set, acc_set, deg):
 
         # solve program
         result = solver.Solve(prog)
-        assert result.is_success():
+        assert result.is_success()
 
         # reconstruct curve
         points = result.GetSolution(Q)
-        duration = result.GetSolution(T_sq) ** .5
+        duration = result.GetSolution(T2) ** .5
         final_time = initial_time + duration
 
         return BezierCurve(points, initial_time, final_time)
