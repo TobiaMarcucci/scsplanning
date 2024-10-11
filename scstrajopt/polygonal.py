@@ -4,48 +4,30 @@ from pydrake.all import ClarabelSolver
 from pybezier import BezierCurve, CompositeBezierCurve
 from typing import List
 
-def polygonal_curve(
+def polygonal(
     q_init: np.ndarray,
     q_term: np.ndarray,
     regions: List[ConvexSet],
-    vel_set: ConvexSet | None,
+    vel_set: ConvexSet,
     acc_set: ConvexSet,
     deg: int,
-    min_duration: float = 0
+    time_tol: float
     ) -> CompositeBezierCurve:
     '''
     Constructs a polygonal composite curve that connects q_init and q_term in
     minimum time.
     '''
 
-    # compute knots of polygonal curve and find kinks
     knots = get_knots(q_init, q_term, regions)
-    kink_indices = get_kink_indices(knots)
-    kinks = np.array([knots[i] for i in kink_indices])
-
-    # turn polygonal curve into minimum-time bezier curve
     curves = []
     initial_time = 0
-    point_to_point_solver = get_point_to_point_solver(vel_set, acc_set, deg)
-    for kink, next_kink in zip(kinks[:-1], kinks[1:]):
-        curve = point_to_point_solver(kink, next_kink, initial_time)
+    point_to_point_solver = get_point_to_point_solver(vel_set, acc_set, deg, time_tol)
+    for knot, next_knot in zip(knots[:-1], knots[1:]):
+        curve = point_to_point_solver(knot, next_knot, initial_time)
         initial_time = curve.final_time
         curves.append(curve)
 
-    # split merged curves at knot points
-    split_curves = []
-    curve = curves.pop(0)
-    for i, knot in enumerate(knots[1:]):
-        if i + 1 in kink_indices:
-            split_curves.append(curve)
-            if curves:
-                curve = curves.pop(0)
-        else:
-            split_time = get_crossing_time(curve, knot)
-            split_curve, curve = curve.domain_split(split_time)
-            split_curves.append(split_curve)
-
-    return CompositeBezierCurve(split_curves)
+    return CompositeBezierCurve(curves)
 
 def get_knots(q_init, q_term, regions):
     '''
@@ -79,45 +61,7 @@ def get_knots(q_init, q_term, regions):
 
     return result.GetSolution(knots)
 
-def get_kink_indices(knots, tol=1e-4):
-    '''
-    Detects the indices of the points where the trajectory bends. Includes
-    initial and final points. Uses the triangle inequality (division free):
-    |knots[i] - knots[i-1]| + |knots[i+1] - knots[i]| > |knots[i+1] - knots[i-1]|
-    implies that knots[i] is a kink.
-    '''
-
-    d01 = np.linalg.norm(knots[1:-1] - knots[:-2], axis=1)
-    d12 = np.linalg.norm(knots[2:] - knots[1:-1], axis=1)
-    d02 = np.linalg.norm(knots[2:] - knots[:-2], axis=1)
-    residuals = d01 + d12 - d02
-    internal_kink_indices = [i + 1 for i, res in enumerate(residuals) if res > tol]
-    kink_indices = [0] + internal_kink_indices + [len(knots) - 1]
-
-    return kink_indices
-
-def get_crossing_time(curve, q, tol=1e-7):
-    '''
-    Uses bisection to find the time at which the curve (which is supposed to be
-    a straigth line) goes through the point q.
-    '''
-
-    min_time = curve.initial_time
-    max_time = curve.final_time
-    q0 = curve.initial_point()
-    direction = curve.final_point() - q0
-    d1 = (q - q0).dot(direction)
-    while max_time - min_time > tol:
-        time = (min_time + max_time) / 2
-        d2 = (curve(time) - q0).dot(direction)
-        if d1 > d2:
-            min_time = time
-        else:
-            max_time = time
-
-    return (min_time + max_time) / 2
-
-def get_point_to_point_solver(vel_set, acc_set, deg):
+def get_point_to_point_solver(vel_set, acc_set, deg, time_tol):
     '''
     Returns a program that optimizes a Bezier curve that moves between two
     points in minimum time. The initial and final velocities are set to zero.
@@ -131,10 +75,13 @@ def get_point_to_point_solver(vel_set, acc_set, deg):
     Q = prog.NewContinuousVariables(deg + 1, dim) # position control points
     V = prog.NewContinuousVariables(deg, dim) # velocity control points
     A = prog.NewContinuousVariables(deg - 1, dim) # acceleration control points
+    T = prog.NewContinuousVariables(1)[0] # curve duration
     T2 = prog.NewContinuousVariables(1)[0] # square of the curve duration
-
+    
     # cost function
     prog.AddLinearCost(T2)
+    prog.AddLinearConstraint(T2 >= time_tol ** 2)
+    prog.AddRotatedLorentzConeConstraint(1, T2, T ** 2) # enforces T2 >= T^2
 
     # parametric constraints on initial and final position
     init_constr = prog.AddLinearConstraint(eq(Q[0], 0)).evaluator()
@@ -150,11 +97,8 @@ def get_point_to_point_solver(vel_set, acc_set, deg):
     prog.AddLinearConstraint(eq(A, diff(V)))
 
     # velocity and acceleration constraints
-    if vel_set is not None:
-        T = prog.NewContinuousVariables(1)[0] # curve duration
-        prog.AddRotatedLorentzConeConstraint(1, T2, T ** 2) # enforces T2 >= T^2
-        for v in V:
-            vel_set.AddPointInNonnegativeScalingConstraints(prog, v, T)
+    for v in V:
+        vel_set.AddPointInNonnegativeScalingConstraints(prog, v, T)
     for a in A:
         acc_set.AddPointInNonnegativeScalingConstraints(prog, a, T2)
 

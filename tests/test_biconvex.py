@@ -1,9 +1,10 @@
 import unittest
 import numpy as np
 from pydrake.all import Hyperrectangle
-from scstrajopt.polygonal import polygonal, get_knots
+from scstrajopt.polygonal import polygonal
+from scstrajopt.biconvex import biconvex, FixedPositionProgram, FixedVelocityProgram
 
-class TestPolygonal(unittest.TestCase):
+class TestBiconvex(unittest.TestCase):
 
     def setUp(self):
 
@@ -41,7 +42,7 @@ class TestPolygonal(unittest.TestCase):
         self.q_term = [q_term_1, q_term_2, q_term_3]
         self.regions = [regions_1, regions_2, regions_3]
 
-    def test_polygonal(self):
+    def test_biconvex(self):
         decimal = 6
         tol = 10 ** (- decimal)
 
@@ -59,7 +60,7 @@ class TestPolygonal(unittest.TestCase):
             acc_set = vel_set
 
             # get polygonal curve
-            composite_curve = polygonal(q_init, q_term, regions, vel_set, acc_set, deg, time_tol)
+            composite_curve = biconvex(q_init, q_term, regions, vel_set, acc_set, deg, time_tol)
             
             # initial and final conditions
             np.testing.assert_array_almost_equal(q_init, composite_curve.initial_point(), decimal=decimal)
@@ -73,8 +74,6 @@ class TestPolygonal(unittest.TestCase):
             # velocity constraints
             velocity = composite_curve.derivative()
             for k, curve in enumerate(velocity):
-                np.testing.assert_array_almost_equal(curve.initial_point(), 0, decimal=decimal)
-                np.testing.assert_array_almost_equal(curve.final_point(), 0, decimal=decimal)
                 for p in curve.points:
                     self.assertTrue(vel_set.PointInSet(p, tol))
 
@@ -88,23 +87,18 @@ class TestPolygonal(unittest.TestCase):
             for curve in composite_curve:
                 self.assertGreater(curve.duration, time_tol - tol)
 
-    def test_get_knots(self):
-        decimal = 4
-
-        # desired values
-        desired_shape = [(4, 2), (4, 2), (6, 3)]
-        desired_knots = [
-            np.array([[0, 0], [2, 2], [3, 2], [5, 1]]),
-            np.array([[3, 1], [3, 4], [3, 4], [6, 4]]),
-            np.array([[1, 1, 0], [1, 4, .5], [4, 4, 1], [4, 4, 4], [1, 4, 4.5], [1, 1, 5]])
-        ]
-
-        # check all problems
-        for i in range(3):
-            knots = get_knots(self.q_init[i], self.q_term[i], self.regions[i])
-            self.assertEqual(knots.shape, desired_shape[i])
-            for knot, desired_knot in zip(knots, desired_knots[i]):
-                np.testing.assert_array_almost_equal(knot, desired_knot, decimal=decimal)
-
+            # test decreasing cost
+            composite_curve = polygonal(q_init, q_term, regions, vel_set, acc_set, deg, time_tol)
+            fixed_position = FixedPositionProgram(regions, vel_set, acc_set, deg, time_tol)
+            fixed_velocity = FixedVelocityProgram(q_init, q_term, regions, vel_set, acc_set, deg, time_tol)
+            durations = [composite_curve.duration]
+            for i in range(3):
+                composite_curve = fixed_position.solve(composite_curve)
+                durations.append(composite_curve.duration)
+                composite_curve = fixed_velocity.solve(composite_curve)
+                durations.append(composite_curve.duration)
+            durations = np.array(durations)
+            self.assertGreater(min(durations[:-1] - durations[1:]), - tol)
+            
 if __name__ == '__main__':
     unittest.main()
