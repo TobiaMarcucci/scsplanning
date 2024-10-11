@@ -49,7 +49,7 @@ class TestBiconvex(unittest.TestCase):
         # problem parameters
         unit_box = lambda dim: Hyperrectangle([-1] * dim, [1] * dim)
         deg = 5
-        time_tol = .1
+        time_tol = .01
 
         # check all problems
         for i in range(3):
