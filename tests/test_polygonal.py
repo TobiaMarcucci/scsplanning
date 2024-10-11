@@ -12,6 +12,7 @@ class TestPolygonalCurve(unittest.TestCase):
     def test_get_knots(self):
         decimal = 4
 
+        # simple 2d problem
         q_init = np.array([0, 0])
         q_term = np.array([5, 1])
         regions = [
@@ -20,13 +21,12 @@ class TestPolygonalCurve(unittest.TestCase):
             Hyperrectangle([3, 0], [6, 3]),
         ]
         knots = get_knots(q_init, q_term, regions)
-        self.assertEqual(knots.shape[0], 4)
-        self.assertEqual(knots.shape[1], 2)
-        np.testing.assert_array_almost_equal(knots[0], q_init, decimal=decimal)
-        np.testing.assert_array_almost_equal(knots[1], [2, 2], decimal=decimal)
-        np.testing.assert_array_almost_equal(knots[2], [3, 2], decimal=decimal)
-        np.testing.assert_array_almost_equal(knots[3], q_term, decimal=decimal)
+        self.assertEqual(knots.shape, (4, 2))
+        target_knots = np.array([q_init, [2, 2], [3, 2], q_term])
+        for knot, target_knot in zip(knots, target_knots):
+            np.testing.assert_array_almost_equal(knot, target_knot, decimal=decimal)
 
+        # simple 3d problem
         q_init = np.array([1, 1, 0])
         q_term = np.array([1, 1, 5])
         regions = [
@@ -37,15 +37,24 @@ class TestPolygonalCurve(unittest.TestCase):
             Hyperrectangle([0, 0, 4], [1, 5, 5]),
         ]
         knots = get_knots(q_init, q_term, regions)
-        print(knots)
-        self.assertEqual(knots.shape[0], 6)
-        self.assertEqual(knots.shape[1], 3)
-        np.testing.assert_array_almost_equal(knots[0], q_init, decimal=decimal)
-        np.testing.assert_array_almost_equal(knots[1], [1, 4, .5], decimal=decimal)
-        np.testing.assert_array_almost_equal(knots[2], [4, 4, 1], decimal=decimal)
-        np.testing.assert_array_almost_equal(knots[3], [4, 4, 4], decimal=decimal)
-        np.testing.assert_array_almost_equal(knots[4], [1, 4, 4.5], decimal=decimal)
-        np.testing.assert_array_almost_equal(knots[5], q_term, decimal=decimal)
+        self.assertEqual(knots.shape, (6, 3))
+        target_knots = np.array([q_init, [1, 4, .5], [4, 4, 1], [4, 4, 4], [1, 4, 4.5], q_term])
+        for knot, target_knot in zip(knots, target_knots):
+            np.testing.assert_array_almost_equal(knot, target_knot, decimal=decimal)
+
+        # 2d problem with overlapping knot points
+        q_init = np.array([3, 1])
+        q_term = np.array([6, 4])
+        regions = [
+            Hyperrectangle([1, 0], [4, 5]),
+            Hyperrectangle([0, 4], [3, 7]),
+            Hyperrectangle([2, 3], [7, 6]),
+        ]
+        knots = get_knots(q_init, q_term, regions)
+        self.assertEqual(knots.shape, (4, 2))
+        target_knots = np.array([q_init, [3, 4], [3, 4], q_term])
+        for knot, target_knot in zip(knots, target_knots):
+            np.testing.assert_array_almost_equal(knot, target_knot, decimal=decimal)
         
 if __name__ == '__main__':
     unittest.main()
