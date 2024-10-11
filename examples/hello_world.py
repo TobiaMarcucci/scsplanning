@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pydrake.all import Hyperrectangle
 from matplotlib.patches import Rectangle
-from scstrajopt import biconvex
+from scstrajopt import biconvex, check_problem_data
 
 # initial and terminal positions
 q_init = np.array([1, -1])
@@ -21,6 +21,9 @@ acc_set = Hyperrectangle([-1, -1], [1, 1])
 
 # degree of the Bezier curves
 deg = 5
+
+# check that problem data verify all the necessary assumptions
+check_problem_data(q_init, q_term, regions, vel_set, acc_set, deg)
 
 # optimize curve
 curve = biconvex(q_init, q_term, regions, vel_set, acc_set, deg)

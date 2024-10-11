@@ -11,13 +11,8 @@ def biconvex(
     vel_set: ConvexSet,
     acc_set: ConvexSet,
     deg: int,
-    time_tol: float = 1e-2,
-    debug_mode: bool = False
+    time_tol: float = 1e-2
     ) -> CompositeBezierCurve:
-
-    # in debug mode we check all the assumptions on the problem data
-    if debug_mode:
-        check_input_data(q_init, q_term, regions, vel_set, acc_set, deg, time_tol)
 
     # compute initial guess
     curve = polygonal(q_init, q_term, regions, vel_set, acc_set, deg, time_tol)
@@ -36,40 +31,6 @@ def biconvex(
             break
 
     return curve
-
-def check_input_data(q_init, q_term, regions, vel_set, acc_set, deg, time_tol):
-
-    # vectors and sets must all have the same dimensions
-    assert len(q_init.shape) == 1
-    assert len(q_term.shape) == 1
-    dim = len(q_init)
-    assert len(q_term) == dim
-    assert all(region.ambient_dimension() == dim for region in regions)
-    assert vel_set.ambient_dimension() == dim
-    assert acc_set.ambient_dimension() == dim
-
-    # tolerance must be positive
-    assert time_tol > 0
-
-    # curve degree must be high enough to represent straight lines with zero
-    # velocity at the endpoints, so that algorithm is guaranteed to succeed
-    assert deg >= 3
-
-    # initial and final points must be in the first and last region respectively
-    assert regions[0].PointInSet(q_init)
-    assert regions[-1].PointInSet(q_term)
-
-    # derivative constraint set must contain the origin in teir interior
-    simplex_vertices = np.vstack((np.zeros(dim), np.eye(dim)))
-    simplex_vertices -= np.mean(simplex_vertices, axis=0)
-    simplex_vertices *= 1e-4
-    for p in simplex_vertices:
-        assert vel_set.PointInSet(p)
-        assert acc_set.PointInSet(p)
-
-    # consecutive sets must intersect
-    for region1, region2 in zip(regions[1:], regions[:-1]):
-        assert region1.IntersectsWith(region2)
 
 class BaseProgram(MathematicalProgram):
     '''
@@ -317,3 +278,37 @@ class FixedVelocityProgram(BaseProgram):
         Q_opt = self.get_solution(self.Q, result)
 
         return self.reconstruct_curve(Q_opt, T_opt)
+
+def check_problem_data(q_init, q_term, regions, vel_set, acc_set, deg, time_tol=1e-2, space_tol=1e-6):
+
+    # vectors and sets must all have the same dimensions
+    assert len(q_init.shape) == 1
+    assert len(q_term.shape) == 1
+    dim = len(q_init)
+    assert len(q_term) == dim
+    assert all(region.ambient_dimension() == dim for region in regions)
+    assert vel_set.ambient_dimension() == dim
+    assert acc_set.ambient_dimension() == dim
+
+    # tolerance must be positive
+    assert time_tol > 0
+
+    # curve degree must be high enough to represent straight lines with zero
+    # velocity at the endpoints, so that algorithm is guaranteed to succeed
+    assert deg >= 3
+
+    # initial and final points must be in the first and last region respectively
+    assert regions[0].PointInSet(q_init)
+    assert regions[-1].PointInSet(q_term)
+
+    # derivative constraint set must contain the origin in teir interior
+    simplex_vertices = np.vstack((np.zeros(dim), np.eye(dim)))
+    simplex_vertices -= np.mean(simplex_vertices, axis=0)
+    simplex_vertices *= 1e-4
+    for p in simplex_vertices:
+        assert vel_set.PointInSet(p)
+        assert acc_set.PointInSet(p)
+
+    # consecutive sets must intersect
+    for region1, region2 in zip(regions[1:], regions[:-1]):
+        assert region1.IntersectsWith(region2)
