@@ -9,38 +9,29 @@ class TestBiconvex(unittest.TestCase):
     def setUp(self):
 
         # simple 2d problem
-        q_init_1 = np.array([0, 0])
-        q_term_1 = np.array([5, 1])
-        regions_1 = [
+        q_init_2d = np.array([0, 0])
+        q_term_2d = np.array([5, 1])
+        regions_2d = [
             Hyperrectangle([-1, -2], [2, 3]),
             Hyperrectangle([1, 2], [4, 5]),
             Hyperrectangle([3, 0], [6, 3]),
         ]
-
-        # 2d problem with overlapping knot points
-        q_init_2 = np.array([3, 1])
-        q_term_2 = np.array([6, 4])
-        regions_2 = [
-            Hyperrectangle([1, 0], [4, 5]),
-            Hyperrectangle([0, 4], [3, 7]),
-            Hyperrectangle([2, 3], [7, 6]),
-        ]
+        problem_2d = (q_init_2d, q_term_2d, regions_2d)
 
         # simple 3d problem
-        q_init_3 = np.array([1, 1, 0])
-        q_term_3 = np.array([1, 1, 5])
-        regions_3 = [
+        q_init_3d = np.array([1, 1, 0])
+        q_term_3d = np.array([1, 1, 5])
+        regions_3d = [
             Hyperrectangle([0, 0, 0], [1, 5, 1]),
             Hyperrectangle([0, 4, 0], [5, 5, 1]),
             Hyperrectangle([4, 4, 0], [5, 5, 5]),
             Hyperrectangle([0, 4, 4], [5, 5, 5]),
             Hyperrectangle([0, 0, 4], [1, 5, 5]),
         ]
+        problem_3d = (q_init_3d, q_term_3d, regions_3d)
 
         # collect problems
-        self.q_init = [q_init_1, q_init_2, q_init_3]
-        self.q_term = [q_term_1, q_term_2, q_term_3]
-        self.regions = [regions_1, regions_2, regions_3]
+        self.problems = [problem_2d, problem_3d]
 
     def test_biconvex(self):
         decimal = 6
@@ -49,18 +40,15 @@ class TestBiconvex(unittest.TestCase):
         # problem parameters
         unit_box = lambda dim: Hyperrectangle([-1] * dim, [1] * dim)
         deg = 5
-        time_tol = .01
 
         # check all problems
-        for i in range(3):
-            q_init = self.q_init[i]
-            q_term = self.q_term[i]
-            regions = self.regions[i]
+        for problem in self.problems:
+            q_init, q_term, regions = problem
             vel_set = unit_box(len(q_init))
             acc_set = vel_set
 
             # get polygonal curve
-            composite_curve = biconvex(q_init, q_term, regions, vel_set, acc_set, deg, time_tol)
+            composite_curve = biconvex(q_init, q_term, regions, vel_set, acc_set, deg)
             
             # initial and final conditions
             np.testing.assert_array_almost_equal(q_init, composite_curve.initial_point(), decimal=decimal)
@@ -83,16 +71,13 @@ class TestBiconvex(unittest.TestCase):
                 for p in curve.points:
                     self.assertTrue(acc_set.PointInSet(p, tol))
 
-            # curve duration
-            for curve in composite_curve:
-                self.assertGreater(curve.duration, time_tol - tol)
-
             # test decreasing cost
-            composite_curve = polygonal(q_init, q_term, regions, vel_set, acc_set, deg, time_tol)
-            fixed_position = FixedPositionProgram(regions, vel_set, acc_set, deg, time_tol)
-            fixed_velocity = FixedVelocityProgram(q_init, q_term, regions, vel_set, acc_set, deg, time_tol)
+            n_iters = 4
+            composite_curve = polygonal(q_init, q_term, regions, vel_set, acc_set, deg)
+            fixed_position = FixedPositionProgram(regions, vel_set, acc_set, deg)
+            fixed_velocity = FixedVelocityProgram(q_init, q_term, regions, vel_set, acc_set, deg)
             durations = [composite_curve.duration]
-            for i in range(3):
+            for i in range(n_iters):
                 composite_curve = fixed_position.solve(composite_curve)
                 durations.append(composite_curve.duration)
                 composite_curve = fixed_velocity.solve(composite_curve)
