@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 from pydrake.all import Hyperrectangle
-from scstrajopt.polygonal import polygonal, get_knots
+from scstrajopt.polygonal import polygonal, get_knots, get_kink_indices
 
 class TestPolygonal(unittest.TestCase):
 
@@ -89,6 +89,21 @@ class TestPolygonal(unittest.TestCase):
             self.assertEqual(knots.shape, desired_shape[i])
             for knot, desired_knot in zip(knots, desired_knots[i]):
                 np.testing.assert_array_almost_equal(knot, desired_knot, decimal=decimal)
+
+    def test_get_kink_indices(self):
+        knots = np.array([
+            [0, 0], # kink
+            [1.5, 1.5],
+            [2, 2], # kink
+            [5, 2],
+            [7, 2],
+            [7.1, 2], # kink
+            [7.1, 2.3], # kink
+            [7.2, 2.5],
+            [7.3, 2.7], # kink
+        ])
+        kink_indices = [0, 2, 5, 6, 8]
+        self.assertEqual(kink_indices, get_kink_indices(knots))
 
 if __name__ == '__main__':
     unittest.main()

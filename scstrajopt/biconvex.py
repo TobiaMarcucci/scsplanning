@@ -140,14 +140,14 @@ class BaseProgram(MathematicalProgram):
     def reconstruct_curve(self, Q_opt, T_opt):
 
         reg = len(T_opt)
-        beziers = []
+        curves = []
         t_start = 0
         for i in range(reg):
             t_stop = t_start + T_opt[i]
-            beziers.append(BezierCurve(Q_opt[i], t_start, t_stop))
+            curves.append(BezierCurve(Q_opt[i], t_start, t_stop))
             t_start = t_stop
 
-        return CompositeBezierCurve(beziers)
+        return CompositeBezierCurve(curves)
 
 class FixedPositionProgram(BaseProgram):
 
