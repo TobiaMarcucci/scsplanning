@@ -11,7 +11,7 @@ def biconvex(
     vel_set: ConvexSet,
     acc_set: ConvexSet,
     deg: int,
-    tol: float = 1e-3
+    tol: float = 1e-2
     ) -> CompositeBezierCurve:
 
     # compute initial guess
@@ -53,11 +53,21 @@ class BaseProgram(MathematicalProgram):
         self.T = self.add_variables(reg) # durations or inverse durations
         self.S = self.add_variables(reg) # acceleration scaling
 
-        # finite difference for computing the control points of the derivatives
-        diff = lambda X: (X[1:] - X[:-1]) * (len(X) - 1)
+        # finite difference for velocity
+        I = np.eye(dim)
+        D = np.hstack((I, -I*deg, I*deg))
+        d = np.zeros(dim)
         for i in range(reg):
-            self.AddLinearConstraint(eq(self.V[i], diff(self.Q[i])))
-            self.AddLinearConstraint(eq(self.A[i], diff(self.V[i])))
+            for k in range(deg):
+                vars = np.concatenate((self.V[i, k], self.Q[i,k+1], self.Q[i, k]))
+                self.AddLinearEqualityConstraint(D, d, vars)
+
+        # finite difference for acceleration
+        D = np.hstack((I, -I*(deg-1), I*(deg-1)))
+        for i in range(reg):
+            for k in range(deg-1):
+                vars = np.concatenate((self.A[i, k], self.V[i, k+1], self.V[i, k]))
+                self.AddLinearEqualityConstraint(D, d, vars)
 
         # scaling constraint on the acceleration
         for i in range(reg):
@@ -65,12 +75,12 @@ class BaseProgram(MathematicalProgram):
                 acc_set.AddPointInNonnegativeScalingConstraints(self, a, self.S[i])
 
         # parametric constraints that decide the value of the acceleration scaling
-        lhs = np.zeros((1, 2))
-        rhs = np.zeros(1)
+        D = np.zeros((1, 2))
+        d = np.zeros(1)
         self.scaling_constr = []
         for i in range(reg):
             vars = np.array((self.S[i], self.T[i]))
-            self.scaling_constr.append(self.AddLinearEqualityConstraint(lhs, rhs, vars).evaluator())
+            self.scaling_constr.append(self.AddLinearEqualityConstraint(D, d, vars).evaluator())
 
     def add_variables(self, *args):
         '''
@@ -112,16 +122,16 @@ class BaseProgram(MathematicalProgram):
 
         reg = X.shape[0]
         dim = X.shape[-1]
-        lhs = np.zeros((dim, dim + 1))
-        rhs = np.zeros(dim)
+        D = np.zeros((dim, dim + 1))
+        d = np.zeros(dim)
         init_constr = []
         term_constr = []
         for i in range(reg):
             vars = np.concatenate((X[i, 0], [self.T[i]]))
-            c = self.AddLinearEqualityConstraint(lhs, rhs, vars)
+            c = self.AddLinearEqualityConstraint(D, d, vars)
             init_constr.append(c.evaluator())
             vars = np.concatenate((X[i, -1], [self.T[i]]))
-            c = self.AddLinearEqualityConstraint(lhs, rhs, vars)
+            c = self.AddLinearEqualityConstraint(D, d, vars)
             term_constr.append(c.evaluator())
 
         return init_constr, term_constr
@@ -130,12 +140,12 @@ class BaseProgram(MathematicalProgram):
 
         reg = knots.shape[0] - 1
         dim = knots.shape[1]
-        lhs = np.vstack((np.eye(dim), - knots[0])).T
-        rhs = np.zeros(dim)
+        D = np.vstack((np.eye(dim), - knots[0])).T
+        d = np.zeros(dim)
         for i in range(reg):
-            self.init_constr[i].UpdateCoefficients(lhs, rhs)
-            lhs[:, -1] = - knots[i + 1]
-            self.term_constr[i].UpdateCoefficients(lhs, rhs)
+            self.init_constr[i].UpdateCoefficients(D, d)
+            D[:, -1] = - knots[i + 1]
+            self.term_constr[i].UpdateCoefficients(D, d)
    
     def reconstruct_curve(self, Q_opt, T_opt):
 
@@ -156,24 +166,32 @@ class FixedPositionProgram(BaseProgram):
 
         # minimize total time (in this program T contains the inverse of the
         # durations of the Bezier curves)
-        S = self.NewContinuousVariables(len(regions))
-        self.AddLinearCost(sum(S))
-        for Ti, Si in zip(self.T, S):
-            self.AddRotatedLorentzConeConstraint(Si, Ti, 1)
+        reg = len(regions)
+        S = self.NewContinuousVariables(reg)
+        self.AddLinearCost([1] * reg, 0, S)
+        D = [[1, 0], [0, 1], [0, 0]]
+        d = [0, 0, 1]
+        for vars in zip(self.T, S):
+            self.AddRotatedLorentzConeConstraint(D, d, vars)
 
         # initial and final velocities are zero
-        self.AddLinearConstraint(eq(self.V[0, 0], 0))
-        self.AddLinearConstraint(eq(self.V[-1, -1], 0))
+        dim = vel_set.ambient_dimension()
+        I = np.eye(dim)
+        d = [0] * dim
+        self.AddLinearEqualityConstraint(I, d, self.V[0, 0])
+        self.AddLinearEqualityConstraint(I, d, self.V[-1, -1])
 
-        # velocity is continuous when moving between one region and the next
+        # velocity continuity
+        D = np.hstack((I, -I))
         for Vi, Vj in zip(self.V[:-1], self.V[1:]):
-            self.AddLinearConstraint(eq(Vi[-1], Vj[0]))
+            vars = np.concatenate((Vi[-1], Vj[0]))
+            self.AddLinearEqualityConstraint(D, d, vars)
 
         # control points must be in corresponding region (avoids overconstraining)
-        for i in range(len(regions)):
+        for i in range(reg):
             if i == 0:
                 Qi = self.Q[i, 2:-1] # skip first, second, and last
-            elif i == len(regions) - 1:
+            elif i == reg - 1:
                 Qi = self.Q[i, 1:-2] # skip first, second to last, and last
             else:
                 Qi = self.Q[i, 1:-1] # skip first and last
@@ -181,7 +199,7 @@ class FixedPositionProgram(BaseProgram):
                 regions[i].AddPointInNonnegativeScalingConstraints(self, q, self.T[i])
 
         # velocity constraints (avoids overconstraining)
-        for i in range(len(regions)):
+        for i in range(reg):
             if i == 0:
                 Vi = self.V[i, 1:-1]
             else:
@@ -203,9 +221,9 @@ class FixedPositionProgram(BaseProgram):
 
         # update accceleration constraint
         for i, Ti in enumerate(T_nom):
-            lhs = np.array([[1, Ti ** 2]])
-            rhs = np.array([2 * Ti])
-            self.scaling_constr[i].UpdateCoefficients(lhs, rhs)
+            D = np.array([[1, Ti ** 2]])
+            d = np.array([2 * Ti])
+            self.scaling_constr[i].UpdateCoefficients(D, d)
 
         # solve program
         result = self.solver.Solve(self)
@@ -223,15 +241,21 @@ class FixedVelocityProgram(BaseProgram):
         super().__init__(regions, acc_set, deg)
 
         # minimize total time
-        self.AddLinearCost(sum(self.T))
+        reg = len(regions)
+        self.AddLinearCost([1] * reg, 0, self.T)
 
         # initial and final positions
-        self.AddLinearConstraint(eq(self.Q[0, 0], q_init))
-        self.AddLinearConstraint(eq(self.Q[-1, -1], q_term))
+        dim = vel_set.ambient_dimension()
+        I = np.eye(dim)
+        self.AddLinearEqualityConstraint(I, q_init, self.Q[0, 0])
+        self.AddLinearEqualityConstraint(I, q_term, self.Q[-1, -1])
 
-        # position is continuous when moving between one region and the next
+        # position continuity
+        D = np.hstack((I, -I))
+        d = [0] * dim
         for Qi, Qj in zip(self.Q[:-1], self.Q[1:]):
-            self.AddLinearConstraint(eq(Qi[-1], Qj[0]))
+            vars = np.concatenate((Qi[-1], Qj[0]))
+            self.AddLinearEqualityConstraint(D, d, vars)
 
         # curve control points must be in corresponding region
         for i, Qi in enumerate(self.Q):
@@ -239,11 +263,10 @@ class FixedVelocityProgram(BaseProgram):
                 regions[i].AddPointInSetConstraints(self, q)
 
         # velocity constraints
-        if vel_set is not None:
-            for i, Vi in enumerate(self.V):
-                # do not constraint first and last point to avoid numerical issues
-                for v in Vi[1:-1]:
-                    vel_set.AddPointInNonnegativeScalingConstraints(self, v, self.T[i])
+        for i, Vi in enumerate(self.V):
+            # do not constraint first and last point to avoid numerical issues
+            for v in Vi[1:-1]:
+                vel_set.AddPointInNonnegativeScalingConstraints(self, v, self.T[i])
 
         # parametric constraints on knot velocities
         self.init_constr, self.term_constr = self.parametric_knot_constraints(self.V)
@@ -259,9 +282,9 @@ class FixedVelocityProgram(BaseProgram):
 
         # update accceleration constraint
         for i, Ti in enumerate(T_nom):
-            lhs = np.array([[1, - 2 * Ti]])
-            rhs = np.array([- Ti ** 2])
-            self.scaling_constr[i].UpdateCoefficients(lhs, rhs)
+            D = np.array([[1, - 2 * Ti]])
+            d = np.array([- Ti ** 2])
+            self.scaling_constr[i].UpdateCoefficients(D, d)
 
         # solve program
         result = self.solver.Solve(self)

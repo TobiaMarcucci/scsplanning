@@ -53,23 +53,37 @@ def get_knots(q_init, q_term, regions):
     initial and final points through the given convex regions.
     '''
 
+    # problem size
+    reg = len(regions)
+    dim = len(q_init)
+
     # program and decision variables
     prog = MathematicalProgram()
     knots = prog.NewContinuousVariables(len(regions) + 1, len(q_init))
     slacks = prog.NewContinuousVariables(len(regions)) # slack variables for the L2 cost
 
     # cost function
-    prog.AddLinearCost(sum(slacks))
+    prog.AddLinearCost([1] * reg, 0, slacks)
 
-    # constraints
-    prog.AddLinearConstraint(eq(knots[0], q_init))
-    prog.AddLinearConstraint(eq(knots[-1], q_term))
+    # initial conditions
+    I = np.eye(dim)
+    prog.AddLinearEqualityConstraint(I, q_init, knots[0])
+    prog.AddLinearEqualityConstraint(I, q_term, knots[-1])
+
+    # points in convex regions
     for i, region in enumerate(regions):
         region.AddPointInSetConstraints(prog, knots[i])
         region.AddPointInSetConstraints(prog, knots[i + 1])
-        distance = knots[i + 1] - knots[i]
-        soc_vector = np.concatenate(([slacks[i]], distance))
-        prog.AddLorentzConeConstraint(soc_vector)
+
+    # cost slacks
+    D = np.zeros((dim + 1, 2 * dim + 1))
+    D[0, 0] = 1
+    D[1:, 1:dim+1] = I
+    D[1:, dim+1:] = - I
+    d = np.zeros(dim + 1)
+    for i in range(reg):
+        vars = np.concatenate(([slacks[i]], knots[i], knots[i + 1]))
+        prog.AddLorentzConeConstraint(D, d, vars)
 
     # solve program
     solver = ClarabelSolver()
@@ -85,6 +99,8 @@ def get_kink_indices(knots, tol=1e-4):
     initial and final points. Uses the triangle inequality (division free):
     |knots[i] - knots[i-1]| + |knots[i+1] - knots[i]| > |knots[i+1] - knots[i-1]|
     implies that knots[i] is a kink.
+    This assumes that consecutive kinks are not equal:
+    knots[i] != knots[i+1] for all i.
     '''
 
     d01 = np.linalg.norm(knots[1:-1] - knots[:-2], axis=1)
@@ -124,21 +140,31 @@ def get_min_time_solver(vel_set, acc_set, deg):
     T2 = prog.NewContinuousVariables(1)[0] # square of the curve duration
 
     # cost function
-    prog.AddLinearCost(T2)
-    prog.AddRotatedLorentzConeConstraint(1, T2, T ** 2)
+    prog.AddLinearCost([1], 0, [T2])
+    vars = np.array([T, T2])
+    D = [[0, 0], [0, 1], [1, 0]]
+    d = [1, 0, 0]
+    prog.AddRotatedLorentzConeConstraint(D, d, vars)
 
     # boundary constraints
-    prog.AddLinearEqualityConstraint(Q[0] == 0)
-    prog.AddLinearEqualityConstraint(V[0] == 0)
-    prog.AddLinearEqualityConstraint(V[-1] == 0)
+    prog.AddLinearEqualityConstraint([1], 0, [Q[0]])
+    prog.AddLinearEqualityConstraint([1], 0, [V[0]])
+    prog.AddLinearEqualityConstraint([1], 0, [V[-1]])
+    pos_term = prog.AddLinearEqualityConstraint([1], 0, [Q[-1]]).evaluator()
 
-    # parametric constraints
-    pos_term = prog.AddLinearEqualityConstraint(Q[-1] == 0).evaluator()
+    # finite differences for velocity
+    I = np.eye(deg)
+    D = np.hstack((I, -I*deg, I*deg))
+    d = np.zeros(deg)
+    vars = np.concatenate((V, Q[1:], Q[:-1]))
+    prog.AddLinearEqualityConstraint(D, d, vars)
 
-    # finite differences for computing the control points of the derivatives
-    diff = lambda X: (X[1:] - X[:-1]) * (len(X) - 1)
-    prog.AddLinearConstraint(eq(V, diff(Q)))
-    prog.AddLinearConstraint(eq(A, diff(V)))
+    # finite differences for acceleration
+    I = np.eye(deg-1)
+    D = np.hstack((I, -I*(deg-1), I*(deg-1)))
+    d = np.zeros(deg-1)
+    vars = np.concatenate((A, V[1:], V[:-1]))
+    prog.AddLinearEqualityConstraint(D, d, vars)
 
     # parametric velocity constraints
     M = np.zeros((deg, deg + 1)) # matrix
