@@ -258,9 +258,15 @@ class FixedVelocityProgram(BaseProgram):
             self.AddLinearEqualityConstraint(D, d, vars)
 
         # curve control points must be in corresponding region
-        for i, Qi in enumerate(self.Q):
+        for i, region in enumerate(regions):
+            if i == 0:
+                Qi = self.Q[i, 1:]
+            if i == reg - 1:
+                Qi = self.Q[i, :-1]
+            else:
+                Qi = self.Q[i]
             for q in Qi:
-                regions[i].AddPointInSetConstraints(self, q)
+                region.AddPointInSetConstraints(self, q)
 
         # velocity constraints
         for i, Vi in enumerate(self.V):

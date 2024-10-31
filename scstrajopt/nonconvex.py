@@ -69,14 +69,30 @@ def nonconvex(q_init, q_term, regions, vel_set, acc_set, deg, region_tol=1e-3, s
             vars = np.concatenate((A[i][k], V[i][k+1], V[i][k]))
             prog.AddLinearEqualityConstraint(D, zero, vars)
 
+    # convex constraints on position
+    for i, region in enumerate(regions):
+        if i == 0:
+            Qi = Q[i][1:]
+        if i == reg - 1:
+            Qi = Q[i][:-1]
+        else:
+            Qi = Q[i]
+        for q in Qi:
+            region.AddPointInSetConstraints(prog, q)
+
+    # convex constraints on velocity
+    for i, Ti in enumerate(T):
+        if i == 0:
+            Vi = V[i][1:-1]
+        else:
+            Vi = V[i][:-1]
+        for v in Vi:
+            vel_set.AddPointInNonnegativeScalingConstraints(prog, v, Ti)
+
     # convex constraints on control points
-    for i in range(reg):
-        for q in Q[i]:
-            regions[i].AddPointInSetConstraints(prog, q) 
-        for v in V[i]:
-            vel_set.AddPointInNonnegativeScalingConstraints(prog, v, T[i])
-        for a in A[i]:
-            acc_set.AddPointInNonnegativeScalingConstraints(prog, a, T2[i])
+    for Ai, T2i in zip(A, T2):
+        for a in Ai:
+            acc_set.AddPointInNonnegativeScalingConstraints(prog, a, T2i)
 
     # cost function
     prog.AddLinearCost([1] * reg, 0, T)
