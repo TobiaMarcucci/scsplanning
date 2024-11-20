@@ -22,13 +22,23 @@ def biconvex(
     fixed_velocity = FixedVelocityProgram(q_init, q_term, regions, vel_set, acc_set, deg)
 
     # alternate until curve duration does not decrease sufficiently
+    rel_improvement = lambda duration, curve: (duration - curve.duration) / curve.duration
+    position_duration = np.inf
+    velocity_duration = curve.duration
+
     while True:
-        prev_duration = curve.duration
+
+        # fixed transition points 
         curve = fixed_position.solve(curve)
-        curve = fixed_velocity.solve(curve)
-        rel_improvement = (prev_duration - curve.duration) / curve.duration
-        if rel_improvement < tol:
+        if rel_improvement(position_duration, curve) < tol:
             break
+        position_duration = curve.duration
+
+        # fixed transition velocities 
+        curve = fixed_velocity.solve(curve)
+        if rel_improvement(velocity_duration, curve) < tol:
+            break
+        velocity_duration = curve.duration
 
     return curve
 
@@ -75,12 +85,12 @@ class BaseProgram(MathematicalProgram):
                 acc_set.AddPointInNonnegativeScalingConstraints(self, a, self.S[i])
 
         # parametric constraints that decide the value of the acceleration scaling
-        D = np.zeros((1, 2))
-        d = np.zeros(1)
+        D = [[0, 0]]
+        d = [0]
         self.scaling_constr = []
-        for i in range(reg):
-            vars = np.array((self.S[i], self.T[i]))
-            self.scaling_constr.append(self.AddLinearEqualityConstraint(D, d, vars).evaluator())
+        for vars in zip(self.S, self.T):
+            c = self.AddLinearEqualityConstraint(D, d, vars)
+            self.scaling_constr.append(c.evaluator())
 
     def add_variables(self, *args):
         '''
