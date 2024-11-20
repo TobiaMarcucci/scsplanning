@@ -97,17 +97,17 @@ def nonconvex(q_init, q_term, regions, vel_set, acc_set, deg, region_tol=1e-3, s
     # cost function
     prog.AddLinearCost([1] * reg, 0, T)
 
-    # warm start with minimum-time polygonal curve
-    curve = polygonal(q_init, q_term, regions, vel_set, acc_set, deg)
-    T_guess = np.array([bez.duration for bez in curve])
-    prog.SetInitialGuess(T, T_guess)
-    prog.SetInitialGuess(T2, T_guess ** 2)
-    velocity = curve.derivative()
-    acceleration = velocity.derivative()
-    for i in range(reg):
-        prog.SetInitialGuess(Q[i], curve[i].points)
-        prog.SetInitialGuess(V[i], T_guess[i] * velocity[i].points)
-        prog.SetInitialGuess(A[i], T_guess[i] ** 2 * acceleration[i].points)
+    # # warm start with minimum-time polygonal curve
+    # curve = polygonal(q_init, q_term, regions, vel_set, acc_set, deg)
+    # T_guess = np.array([bez.duration for bez in curve])
+    # prog.SetInitialGuess(T, T_guess)
+    # prog.SetInitialGuess(T2, T_guess ** 2)
+    # velocity = curve.derivative()
+    # acceleration = velocity.derivative()
+    # for i in range(reg):
+    #     prog.SetInitialGuess(Q[i], curve[i].points)
+    #     prog.SetInitialGuess(V[i], T_guess[i] * velocity[i].points)
+    #     prog.SetInitialGuess(A[i], T_guess[i] ** 2 * acceleration[i].points)
 
     # solve program
     result = solver().Solve(prog)
