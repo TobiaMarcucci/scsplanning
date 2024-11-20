@@ -16,6 +16,7 @@ def biconvex(
 
     # compute initial guess
     curve = polygonal(q_init, q_term, regions, vel_set, acc_set, deg)
+    # print(curve.duration)
 
     # instantiate programs for the biconvex alternation
     fixed_position = FixedPositionProgram(regions, vel_set, acc_set, deg)
@@ -30,12 +31,14 @@ def biconvex(
 
         # fixed transition points 
         curve = fixed_position.solve(curve)
+        # print(curve.duration)
         if rel_improvement(position_duration, curve) < tol:
             break
         position_duration = curve.duration
 
         # fixed transition velocities 
         curve = fixed_velocity.solve(curve)
+        # print(curve.duration)
         if rel_improvement(velocity_duration, curve) < tol:
             break
         velocity_duration = curve.duration
@@ -224,7 +227,7 @@ class FixedPositionProgram(BaseProgram):
 
         # extract parameters from given curve
         T_nom = curve.durations()
-        knots = curve.knot_points()
+        knots = curve.transition_points()
         
         # update knot position constraints
         self.update_knot_constraints(knots)
@@ -291,7 +294,7 @@ class FixedVelocityProgram(BaseProgram):
 
         # extract parameters from given curve
         T_nom = curve.durations()
-        knots = curve.derivative().knot_points()
+        knots = curve.derivative().transition_points()
 
         # update knot velocity constraints
         self.update_knot_constraints(knots)

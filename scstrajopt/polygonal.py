@@ -118,7 +118,7 @@ def get_crossing_time(curve, q):
     a straigth line) goes through the point q.
     '''
 
-    distance = curve.final_point() - curve.initial_point()
+    distance = curve.final_point - curve.initial_point
     f = lambda t: (q - curve(t)).dot(distance)
 
     return brenth(f, curve.initial_time, curve.final_time)
