@@ -19,6 +19,7 @@ def biconvex(
     fixed_position = FixedPoints(regions, vel_set, acc_set, deg, relaxation=True)
     curve = polygonal_curve(q_init, q_term, regions)
     curve = fixed_position.solve(curve)
+    # print(curve.duration)
 
     # instantiate programs for the biconvex alternation
     fixed_position = FixedPoints(regions, vel_set, acc_set, deg)
@@ -33,12 +34,14 @@ def biconvex(
 
         # fixed transition velocities
         curve = fixed_velocity.solve(curve)
+        # print(curve.duration)
         if rel_improvement(velocity_duration, curve) < tol:
             break
         velocity_duration = curve.duration
 
         # fixed transition points 
         curve = fixed_position.solve(curve)
+        # print(curve.duration)
         if rel_improvement(position_duration, curve) < tol:
             break
         position_duration = curve.duration
