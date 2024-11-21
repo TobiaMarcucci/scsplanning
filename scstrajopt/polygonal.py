@@ -9,34 +9,33 @@ def polygonal(
     q_init: np.ndarray,
     q_term: np.ndarray,
     regions: List[ConvexSet],
-    vel_set: ConvexSet | None,
+    vel_set: ConvexSet,
     acc_set: ConvexSet,
     deg: int
     ) -> CompositeBezierCurve:
     '''
-    Constructs a polygonal composite curve that connects q_init and q_term in
-    minimum time.
+    Constructs a polygonal composite curve that connects q_init and q_term in minimum time.
     '''
 
-    # compute knots of polygonal curve and find kinks
-    knots = get_knots(q_init, q_term, regions)
-    kink_indices = get_kink_indices(knots)
-    kinks = np.array([knots[i] for i in kink_indices])
+    # compute points of polygonal curve and find vertices
+    points = get_points(q_init, q_term, regions)
+    vertex_indices = get_vertex_indices(points)
+    vertices = [points[i] for i in vertex_indices]
 
     # turn polygonal curve into minimum-time bezier curve
     curves = []
     initial_time = 0
     min_time_solver = get_min_time_solver(vel_set, acc_set, deg)
-    for kink, next_kink in zip(kinks[:-1], kinks[1:]):
-        curve = min_time_solver(kink, next_kink, initial_time)
+    for vertex, next_vertex in zip(vertices[:-1], vertices[1:]):
+        curve = min_time_solver(vertex, next_vertex, initial_time)
         initial_time = curve.final_time
         curves.append(curve)
 
     # split merged curves at knot points
     split_curves = []
     curve = curves.pop(0)
-    for i, knot in enumerate(knots[1:], start=1):
-        if i in kink_indices:
+    for i, knot in enumerate(points[1:], start=1):
+        if i in vertex_indices:
             split_curves.append(curve)
             if curves:
                 curve = curves.pop(0)
@@ -47,7 +46,7 @@ def polygonal(
 
     return CompositeBezierCurve(split_curves)
 
-def get_knots(q_init, q_term, regions):
+def get_points(q_init, q_term, regions):
     '''
     Computes the knot points of the shortest polygonal curve that connects the
     initial and final points through the given convex regions.
@@ -59,21 +58,21 @@ def get_knots(q_init, q_term, regions):
 
     # program and decision variables
     prog = MathematicalProgram()
-    knots = prog.NewContinuousVariables(len(regions) + 1, len(q_init))
-    slacks = prog.NewContinuousVariables(len(regions)) # slack variables for the L2 cost
+    points = prog.NewContinuousVariables(reg + 1, dim)
+    slacks = prog.NewContinuousVariables(reg) # slack variables for the L2 cost
 
     # cost function
     prog.AddLinearCost([1] * reg, 0, slacks)
 
     # initial conditions
     I = np.eye(dim)
-    prog.AddLinearEqualityConstraint(I, q_init, knots[0])
-    prog.AddLinearEqualityConstraint(I, q_term, knots[-1])
+    prog.AddLinearEqualityConstraint(I, q_init, points[0])
+    prog.AddLinearEqualityConstraint(I, q_term, points[-1])
 
     # points in convex regions
     for i, region in enumerate(regions):
-        region.AddPointInSetConstraints(prog, knots[i])
-        region.AddPointInSetConstraints(prog, knots[i + 1])
+        region.AddPointInSetConstraints(prog, points[i])
+        region.AddPointInSetConstraints(prog, points[i + 1])
 
     # cost slacks
     D = np.zeros((dim + 1, 2 * dim + 1))
@@ -82,7 +81,7 @@ def get_knots(q_init, q_term, regions):
     D[1:, dim+1:] = - I
     d = np.zeros(dim + 1)
     for i in range(reg):
-        vars = np.concatenate(([slacks[i]], knots[i], knots[i + 1]))
+        vars = np.concatenate(([slacks[i]], points[i], points[i + 1]))
         prog.AddLorentzConeConstraint(D, d, vars)
 
     # solve program
@@ -91,26 +90,25 @@ def get_knots(q_init, q_term, regions):
     if not result.is_success():
         raise ValueError("Infeasible problem (could not find polygonal curve traversing the convex regions).")
 
-    return result.GetSolution(knots)
+    return result.GetSolution(points)
 
-def get_kink_indices(knots, tol=1e-4):
+def get_vertex_indices(points, tol=1e-4):
     '''
     Detects the indices of the points where the trajectory bends. Includes
     initial and final points. Uses the triangle inequality (division free):
-    |knots[i] - knots[i-1]| + |knots[i+1] - knots[i]| > |knots[i+1] - knots[i-1]|
-    implies that knots[i] is a kink.
-    This assumes that consecutive kinks are not equal:
-    knots[i] != knots[i+1] for all i.
+    |points[i] - points[i-1]| + |points[i+1] - points[i]| > |points[i+1] - points[i-1]|
+    implies that points[i] is a vertex.
+    This assumes that consecutive vertices are not equal:
+    points[i] != points[i+1] for all i.
     '''
 
-    d01 = np.linalg.norm(knots[1:-1] - knots[:-2], axis=1)
-    d12 = np.linalg.norm(knots[2:] - knots[1:-1], axis=1)
-    d02 = np.linalg.norm(knots[2:] - knots[:-2], axis=1)
+    d01 = np.linalg.norm(points[1:-1] - points[:-2], axis=1)
+    d12 = np.linalg.norm(points[2:] - points[1:-1], axis=1)
+    d02 = np.linalg.norm(points[2:] - points[:-2], axis=1)
     residuals = d01 + d12 - d02
-    internal_kink_indices = [i + 1 for i, res in enumerate(residuals) if res > tol]
-    kink_indices = [0] + internal_kink_indices + [len(knots) - 1]
+    vertex_indices = [i + 1 for i, r in enumerate(residuals) if r > tol]
 
-    return kink_indices
+    return [0] + vertex_indices + [len(points) - 1]
 
 def get_crossing_time(curve, q):
     '''
