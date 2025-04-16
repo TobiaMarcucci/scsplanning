@@ -2,9 +2,9 @@ import numpy as np
 from typing import List
 from pydrake.all import ConvexSet
 from pybezier import CompositeBezierCurve
-from scstrajopt import polygonal
-from scstrajopt.fixed_points import FixedPoints
-from scstrajopt.fixed_velocities import FixedVelocities
+from scsplanning import polygonal
+from scsplanning.fixed_points import FixedPoints
+from scsplanning.fixed_velocities import FixedVelocities
 
 def biconvex(
     q_init: np.ndarray,

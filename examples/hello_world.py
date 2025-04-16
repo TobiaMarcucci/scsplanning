@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pydrake.all import Hyperrectangle
 from matplotlib.patches import Rectangle
-from scstrajopt import biconvex, check_problem_data
+from scsplanning import biconvex, check_problem_data
 
 # initial and terminal positions
 q_init = np.array([1, -1])

@@ -3,7 +3,7 @@ from typing import List
 from pydrake.all import ConvexSet, MathematicalProgram, eq, ge, le
 from pydrake.all import SnoptSolver, IpoptSolver
 from pybezier import BezierCurve, CompositeBezierCurve
-from scstrajopt import polygonal
+from scsplanning import polygonal
 import pydrake.solvers as mp
 
 

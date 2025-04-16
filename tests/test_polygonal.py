@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 from pydrake.all import Hyperrectangle
-from scstrajopt.polygonal import polygonal, get_knots, get_kink_indices
+from scsplanning.polygonal import polygonal, get_knots, get_kink_indices
 
 class TestPolygonal(unittest.TestCase):
 

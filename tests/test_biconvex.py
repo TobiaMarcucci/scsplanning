@@ -1,8 +1,8 @@
 import unittest
 import numpy as np
 from pydrake.all import Hyperrectangle
-from scstrajopt.polygonal import polygonal
-from scstrajopt.biconvex import biconvex, FixedPositionProgram, FixedVelocityProgram
+from scsplanning.polygonal import polygonal
+from scsplanning.biconvex import biconvex, FixedPositionProgram, FixedVelocityProgram
 
 class TestBiconvex(unittest.TestCase):
 

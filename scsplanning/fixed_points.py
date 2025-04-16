@@ -1,5 +1,5 @@
 import numpy as np
-from scstrajopt.base_program import BaseProgram
+from scsplanning.base_program import BaseProgram
 
 class FixedPoints(BaseProgram):
 
