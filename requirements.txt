@@ -1,6 +1,5 @@
 pytest
 numpy
-matplotlib
 drake
 scipy
-pybezier >= 0.1.1
+pybezier >= 0.1.3
