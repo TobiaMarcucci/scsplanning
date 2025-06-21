@@ -66,11 +66,11 @@ class FixedVelocities(BaseProgram):
     def solve(self, curve):
 
         # update transition velocity constraints
-        transition_velocities = curve.derivative().transition_points()
+        transition_velocities = curve.derivative().transition_points
         self.update_transition_constraints(transition_velocities)
 
         # update accceleration constraint
-        traversal_times = curve.durations()
+        traversal_times = curve.durations
         for Ti, ci in zip(traversal_times, self.scaling_constr):
             D = [[1, - 2 * Ti]]
             d = [- Ti ** 2]

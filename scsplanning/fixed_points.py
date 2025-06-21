@@ -73,11 +73,11 @@ class FixedPoints(BaseProgram):
     def solve(self, curve):
 
         # update transition-point constraints
-        transition_points = curve.transition_points()
+        transition_points = curve.transition_points
         self.update_transition_constraints(transition_points)
 
         # update accceleration constraint
-        traversal_times = curve.durations()
+        traversal_times = curve.durations
         for Ti, ci in zip(traversal_times, self.scaling_constr):
             D = [[1, Ti ** 2]]
             d = [2 * Ti]

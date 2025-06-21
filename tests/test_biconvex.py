@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 from pydrake.all import Hyperrectangle
 from scsplanning.polygonal import polygonal
-from scsplanning.biconvex import biconvex, FixedPositionProgram, FixedVelocityProgram
+from scsplanning.biconvex import biconvex, FixedPoints, FixedVelocities
 
 class TestBiconvex(unittest.TestCase):
 
@@ -51,8 +51,8 @@ class TestBiconvex(unittest.TestCase):
             composite_curve = biconvex(q_init, q_term, regions, vel_set, acc_set, deg)
             
             # initial and final conditions
-            np.testing.assert_array_almost_equal(q_init, composite_curve.initial_point(), decimal=decimal)
-            np.testing.assert_array_almost_equal(q_term, composite_curve.final_point(), decimal=decimal)
+            np.testing.assert_array_almost_equal(q_init, composite_curve.initial_point, decimal=decimal)
+            np.testing.assert_array_almost_equal(q_term, composite_curve.final_point, decimal=decimal)
 
             # control points are in convex regions
             for k, curve in enumerate(composite_curve):
@@ -74,8 +74,8 @@ class TestBiconvex(unittest.TestCase):
             # test decreasing cost
             n_iters = 4
             composite_curve = polygonal(q_init, q_term, regions, vel_set, acc_set, deg)
-            fixed_position = FixedPositionProgram(regions, vel_set, acc_set, deg)
-            fixed_velocity = FixedVelocityProgram(q_init, q_term, regions, vel_set, acc_set, deg)
+            fixed_position = FixedPoints(regions, vel_set, acc_set, deg)
+            fixed_velocity = FixedVelocities(q_init, q_term, regions, vel_set, acc_set, deg)
             durations = [composite_curve.duration]
             for i in range(n_iters):
                 composite_curve = fixed_position.solve(composite_curve)

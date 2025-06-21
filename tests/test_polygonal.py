@@ -1,7 +1,7 @@
 import unittest
 import numpy as np
 from pydrake.all import Hyperrectangle
-from scsplanning.polygonal import polygonal, get_knots, get_kink_indices
+from scsplanning.polygonal import polygonal, get_points, get_vertex_indices
 
 class TestPolygonal(unittest.TestCase):
 
@@ -50,8 +50,8 @@ class TestPolygonal(unittest.TestCase):
             composite_curve = polygonal(q_init, q_term, regions, vel_set, acc_set, deg)
             
             # initial and final conditions
-            np.testing.assert_array_almost_equal(q_init, composite_curve.initial_point(), decimal=decimal)
-            np.testing.assert_array_almost_equal(q_term, composite_curve.final_point(), decimal=decimal)
+            np.testing.assert_array_almost_equal(q_init, composite_curve.initial_point, decimal=decimal)
+            np.testing.assert_array_almost_equal(q_term, composite_curve.final_point, decimal=decimal)
 
             # control points are in convex regions
             for k, curve in enumerate(composite_curve):
@@ -61,8 +61,8 @@ class TestPolygonal(unittest.TestCase):
             # velocity constraints
             velocity = composite_curve.derivative()
             for k, curve in enumerate(velocity):
-                np.testing.assert_array_almost_equal(curve.initial_point(), 0, decimal=decimal)
-                np.testing.assert_array_almost_equal(curve.final_point(), 0, decimal=decimal)
+                np.testing.assert_array_almost_equal(curve.initial_point, 0, decimal=decimal)
+                np.testing.assert_array_almost_equal(curve.final_point, 0, decimal=decimal)
                 for p in curve.points:
                     self.assertTrue(vel_set.PointInSet(p, tol))
 
@@ -72,7 +72,7 @@ class TestPolygonal(unittest.TestCase):
                 for p in curve.points:
                     self.assertTrue(acc_set.PointInSet(p, tol))
 
-    def test_get_knots(self):
+    def test_get_points(self):
         decimal = 4
 
         # desired values
@@ -85,12 +85,12 @@ class TestPolygonal(unittest.TestCase):
         # check all problems
         for i, problem in enumerate(self.problems):
             q_init, q_term, regions = problem
-            knots = get_knots(q_init, q_term, regions)
+            knots = get_points(q_init, q_term, regions)
             self.assertEqual(knots.shape, desired_shape[i])
             for knot, desired_knot in zip(knots, desired_knots[i]):
                 np.testing.assert_array_almost_equal(knot, desired_knot, decimal=decimal)
 
-    def test_get_kink_indices(self):
+    def test_get_vertex_indices(self):
         knots = np.array([
             [0, 0], # kink
             [1.5, 1.5],
@@ -103,7 +103,7 @@ class TestPolygonal(unittest.TestCase):
             [7.3, 2.7], # kink
         ])
         kink_indices = [0, 2, 5, 6, 8]
-        self.assertEqual(kink_indices, get_kink_indices(knots))
+        self.assertEqual(kink_indices, get_vertex_indices(knots))
 
 if __name__ == '__main__':
     unittest.main()
