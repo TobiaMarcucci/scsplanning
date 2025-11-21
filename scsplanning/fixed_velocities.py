@@ -30,21 +30,20 @@ class FixedVelocities(BaseProgram):
             vars = np.concatenate((Qi[-1], Qj[0]))
             self.AddLinearEqualityConstraint(D, d, vars)
 
-        # curve control points must be in corresponding region
+        # curve control points must be in corresponding region (avoids overconstraining)
         for i, region in enumerate(regions):
             if i == 0:
-                Qi = self.Q[i, 2:] # skip first, second, and last
+                Qi = self.Q[i, 2:] # skip first and second
             elif i == reg - 1:
                 Qi = self.Q[i, :-2] # skip second to last and last
             else:
-                Qi = self.Q[i] # skip last
+                Qi = self.Q[i] # do not skip any
             for q in Qi:
                 region.AddPointInSetConstraints(self, q)
 
-        # velocity constraints
+        # velocity constraints (avoids overconstraining)
         for i, Vi in enumerate(self.V):
-            # do not constraint first and last point to avoid numerical issues
-            for v in Vi[1:-1]:
+            for v in Vi[1:-1]: # skip first and last
                 vel_set.AddPointInNonnegativeScalingConstraints(self, v, self.T[i])
 
         # parametric constraints on transition velocities
