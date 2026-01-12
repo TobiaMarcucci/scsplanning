@@ -72,6 +72,8 @@ class TestPolygonal(unittest.TestCase):
                 for p in curve.points:
                     self.assertTrue(acc_set.PointInSet(p, tol))
 
+            # TODO: add test that triggers the domain split function
+
     def test_get_points(self):
         decimal = 4
 
