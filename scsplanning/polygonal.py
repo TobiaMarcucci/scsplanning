@@ -41,7 +41,7 @@ def polygonal(
                 curve = curves.pop(0)
         else:
             split_time = get_crossing_time(curve, knot)
-            split_curve, curve = curve.domain_split(split_time)
+            split_curve, curve = curve.split_domain(split_time)
             split_curves.append(split_curve)
 
     return CompositeBezierCurve(split_curves)
